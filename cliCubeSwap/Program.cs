@@ -1,32 +1,87 @@
 ﻿// See https://aka.ms/new-console-template for more information
 using System.Text;
 using System.Diagnostics;
+using Microsoft.Extensions.Configuration;
 
-char a = '⠀';
-
-Console.CursorVisible = false;
-StringBuilder sb = new StringBuilder();
-Stopwatch sw = new Stopwatch();
-sw.Start();
-int frashrate = 144;
-
-for(int k = 0; k < 1000; k++)
+class Program
 {
-    for (int j = 0; j < 16; j++)
+    static CancellationTokenSource _cts = new CancellationTokenSource();
+
+    public static async Task Main(string[] args)
     {
-        for (int i = 0; i < 64; i++)
-        {
-            sb.Append((char)(a + System.Random.Shared.Next(k/4)));
-        }
-        sb.AppendLine();
+        var builder = new ConfigurationBuilder();
+        builder.SetBasePath(Directory.GetCurrentDirectory())
+           .AddJsonFile("appsettings.json", optional: false, reloadOnChange: true);
+
+        IConfiguration config = builder.Build();
+
+        Console.CancelKeyPress += OnCancelKeyPress;
+
+        BrailleFontRenderer renderer = new BrailleFontRenderer(){ Framerate = int.Parse(config["Framerate"])};
+        Console.WriteLine("Press Ctrl+C for exit");
+        renderer.Loop(_cts.Token).Wait();
     }
-    Console.Write(sb.ToString());
-    sb.Clear();
-    Console.Write("\e[16A");
-    while(k * 1000.0 / frashrate > sw.ElapsedMilliseconds)
+
+    static void OnCancelKeyPress(object sender, ConsoleCancelEventArgs e)
     {
-        Thread.Sleep(1);
+        Console.WriteLine("Ctrl+C pressed. Signaling cancellation...");
+        _cts.Cancel();
+        e.Cancel = true; // Prevent immediate termination
     }
 }
 
-Console.Write("\e[16B");
+public class BrailleFontRenderer
+{
+    public int Width { get; init; } = 128;
+    public int Height { get; init; } = 64;
+
+    public int Framerate { get; init; } = 60;
+
+    private byte[] _drawBuffer;
+    private byte[] _backBuffer;
+
+    public BrailleFontRenderer()
+    {
+        int bufferSizeIfBytes = Width * Height / 8;
+        _drawBuffer = new byte[bufferSizeIfBytes];
+        System.Random.Shared.NextBytes(_drawBuffer);
+        _backBuffer = new byte[bufferSizeIfBytes];
+    }
+    
+    public async Task Loop(CancellationToken token)
+    {
+        await Task.Run( () => {
+            char a = '⠀';
+            Console.CursorVisible = false;
+            StringBuilder sb = new StringBuilder();
+            Stopwatch sw = new Stopwatch();
+            sw.Start();
+
+            long frame = 0;
+
+            while (!token.IsCancellationRequested)
+            {
+                frame++;
+                for (int j = 0; j < Height/4; j++)
+                {
+                    for (int i = 0; i < Width/2; i++)
+                    {
+                        sb.Append((char)(a + _drawBuffer[i + Width/2*j]));
+                    }
+                    sb.AppendLine();
+                }
+                Console.Write(sb.ToString());
+                sb.Clear();
+                Console.Write("\e[16A");
+                while (frame * 1000.0 / Framerate > sw.ElapsedMilliseconds)
+                {
+                    Thread.Sleep(1);
+                }
+                (_drawBuffer, _backBuffer) = (_backBuffer, _drawBuffer);
+            }
+            Console.Write("\e[16B");
+        });
+         
+    }
+
+}
