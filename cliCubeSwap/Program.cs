@@ -7,7 +7,7 @@ class Program
 {
     static CancellationTokenSource _cts = new CancellationTokenSource();
 
-    public static async Task Main(string[] args)
+    public static void Main(string[] args)
     {
         var builder = new ConfigurationBuilder();
         builder.SetBasePath(Directory.GetCurrentDirectory())
@@ -17,7 +17,7 @@ class Program
 
         Console.CancelKeyPress += OnCancelKeyPress;
 
-        BrailleFontRenderer renderer = new BrailleFontRenderer(){ Framerate = int.Parse(config["Framerate"])};
+        BrailleFontRenderer renderer = new BrailleFontRenderer(){ Framerate = int.Parse(config["Framerate"] ?? "60")};
         Console.WriteLine("Press Ctrl+C for exit");
         renderer.Loop(_cts.Token).Wait();
     }
@@ -26,7 +26,8 @@ class Program
     {
         Console.WriteLine("Ctrl+C pressed. Signaling cancellation...");
         _cts.Cancel();
-        e.Cancel = true; // Prevent immediate termination
+        if( e != null)
+            e.Cancel = true; // Prevent immediate termination
     }
 }
 
@@ -38,20 +39,42 @@ public class BrailleFontRenderer
     public int Framerate { get; init; } = 60;
 
     private byte[] _drawBuffer;
-    private byte[] _backBuffer;
+
+    private string pattern = "⠀⢀⡠⠒⠉⠈⠑⠢⣀⠀" +
+                             "⡎⠁⠀⠀⠀⠀⠀⠀⠀⠉" + 
+                             "⡇⠀⠀⠀⠀⠀⠀⠀⠀⠀" + 
+                             "⡇⠀⠀⠀⠀⠀⠀⠀⠀⠀"; 
+
+    private const char BrailleEmptySymbol = '⠀';
 
     public BrailleFontRenderer()
     {
         int bufferSizeIfBytes = Width * Height / 8;
         _drawBuffer = new byte[bufferSizeIfBytes];
-        System.Random.Shared.NextBytes(_drawBuffer);
-        _backBuffer = new byte[bufferSizeIfBytes];
+        for (int row = 0; row < 4; row++)
+        {
+            int rowDelta = -(row % 2) * 5;
+            for (int column = 0; column < 7; column++)
+            {
+                for (int i = 0; i < 10; i++)
+                {
+                    int i_index = i + column * 10 + rowDelta;
+                    if (i_index >= 0 && i_index < Width / 2)
+                    {
+                        for (int j = 0; j < 4; j++)
+                        {
+                            int index = i_index + Width / 2 * (j + row * 4);
+                            _drawBuffer[index] = (byte)(pattern[i + 10 * j] - BrailleEmptySymbol);
+                        }
+                    }
+                }
+            }
+        }
     }
-    
+
     public async Task Loop(CancellationToken token)
     {
         await Task.Run( () => {
-            char a = '⠀';
             Console.CursorVisible = false;
             StringBuilder sb = new StringBuilder();
             Stopwatch sw = new Stopwatch();
@@ -66,7 +89,7 @@ public class BrailleFontRenderer
                 {
                     for (int i = 0; i < Width/2; i++)
                     {
-                        sb.Append((char)(a + _drawBuffer[i + Width/2*j]));
+                        sb.Append((char)(BrailleEmptySymbol + _drawBuffer[i + Width/2*j]));
                     }
                     sb.AppendLine();
                 }
@@ -77,11 +100,15 @@ public class BrailleFontRenderer
                 {
                     Thread.Sleep(1);
                 }
-                (_drawBuffer, _backBuffer) = (_backBuffer, _drawBuffer);
             }
             Console.Write("\e[16B");
         });
          
+    }
+
+    private void Draw()
+    {
+        
     }
 
 }
