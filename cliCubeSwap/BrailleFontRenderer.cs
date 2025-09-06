@@ -6,8 +6,8 @@ namespace CliCubeSwap;
 
 public class BrailleFontRenderer
 {
-    public int Width { get; init; } = 128;
-    public int Height { get; init; } = 64 - 12;
+    public int Width { get; init; } = 10*20;
+    public int Height { get; init; } = (5+1)*16 - 12;
 
     public int Framerate { get; init; } = 60;
 
@@ -15,13 +15,14 @@ public class BrailleFontRenderer
 
     private string firstrow = "     ⡀    ";
     private string pattern = "⠀⢀⡠⠒⠉⠈⠑⠢⣀⠀" +
-                             "⡎⠁⠀⠀⠀⠀⠀⠀⠀⠉" + 
-                             "⡇⠀⠀⠀⠀⠀⠀⠀⠀⠀" + 
+                             "⡎⠁⠀⠀⠀⠀⠀⠀⠀⠉" +
+                             "⡇⠀⠀⠀⠀⠀⠀⠀⠀⠀" +
                              "⡇⠀⠀⠀⠀⠀⠀⠀⠀⠀"; 
     private string rightside = " " +
                                "⡆" +
                                "⡇" +
                                "⡇";
+    private string bottomrow = "⠀⠀⠀⠀⠉⠊⠁⠀⠀⠀";
 
     private const char BrailleEmptySymbol = '⠀';
 
@@ -29,10 +30,10 @@ public class BrailleFontRenderer
     {
         int bufferSizeIfBytes = Width * Height / 8;
         _drawBuffer = new byte[bufferSizeIfBytes];
-        for (int row = 0; row < 4; row++)
+        for (int row = 0; row < Height/16 + 1; row++)
         {
             int rowDelta = -(row % 2) * 5;
-            for (int column = 0; column < 7; column++)
+            for (int column = 0; column < Width/20 + 1; column++)
             {
                 for (int i = 0; i < 10; i++)
                 {
@@ -78,17 +79,32 @@ public class BrailleFontRenderer
                     {
                         sb.Append((char)(BrailleEmptySymbol + _drawBuffer[i + Width/2*j]));
                     }
+                    char last_in_row = ' ';
+                    if( (j/4) % 2 == 0 )
+                    {
+                        last_in_row = rightside[j%4];
+                    }
+                    
+                    sb.Append(last_in_row);
                     sb.AppendLine();
                 }
+
+                for (int i = 0; i < Width/20; i++)
+                {
+                    sb.Append(bottomrow);
+                }
+
+                sb.AppendLine();
                 Console.Write(sb.ToString());
                 sb.Clear();
-                Console.Write($"\e[{Height/4}A");
                 while (frame * 1000.0 / Framerate > sw.ElapsedMilliseconds)
                 {
                     Thread.Sleep(1);
                 }
+
+                Console.Write($"\e[{Height/4 + 1}A");
             }
-            Console.Write($"\e[{Height/4}B");
+            Console.Write($"\e[{Height/4 + 1}B");
         });
          
     }
