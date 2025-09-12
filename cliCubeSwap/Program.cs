@@ -9,6 +9,7 @@ class Program
 {
     static CancellationTokenSource _cts = new CancellationTokenSource();
 
+    static BrailleFontRenderer renderer;
     public static void Main(string[] args)
     {
         var builder = new ConfigurationBuilder();
@@ -19,9 +20,9 @@ class Program
 
         Console.CancelKeyPress += OnCancelKeyPress;
 
-        BrailleFontRenderer renderer = new BrailleFontRenderer(){ Framerate = int.Parse(config["Framerate"] ?? "60")};
+        renderer = new BrailleFontRenderer(){ Framerate = int.Parse(config["Framerate"] ?? "60")};
         Console.WriteLine("Press Ctrl+C for exit");
-        renderer.Loop(_cts.Token).Wait();
+        Task.WhenAll( new List<Task> () {renderer.Loop(_cts.Token), ReadKeyLoop(_cts.Token)}).Wait();
     }
 
     static void OnCancelKeyPress(object sender, ConsoleCancelEventArgs e)
@@ -30,6 +31,58 @@ class Program
         _cts.Cancel();
         if( e != null)
             e.Cancel = true; // Prevent immediate termination
+    }
+
+    static async Task ReadKeyLoop(CancellationToken token)
+    {
+        await Task.Run(() => {
+            while (!token.IsCancellationRequested)
+            {
+                if (Console.KeyAvailable)
+                {
+                    ConsoleKeyInfo keyInfo = Console.ReadKey(true);
+                    Point old = renderer.Player;
+                    int newX = old.X, newY = old.Y;
+                    switch (keyInfo.Key)
+                    {
+                        case ConsoleKey.W:
+                            newX = old.X - 1 + (old.Y%2);
+                            newY = old.Y - 1;
+                            break;
+                        case ConsoleKey.E:
+                            newX = old.X + (old.Y%2);
+                            newY = old.Y - 1;
+                            break;
+                        case ConsoleKey.A:
+                            newX = old.X - 1;
+                            break;
+                        case ConsoleKey.D:
+                            newX = old.X + 1;
+                            break;
+                        case ConsoleKey.Z:
+                            newX = old.X - 1 + (old.Y%2);
+                            newY = old.Y + 1;
+                            break;
+                        case ConsoleKey.X:
+                            newX = old.X + (old.Y%2);
+                            newY = old.Y + 1;
+                            break;
+                    }
+
+                    if(renderer.IsCoordValid(newX, newY))
+                    {
+                        old.X = (byte)(newX);
+                        old.Y = (byte)(newY);
+                    }
+
+                    renderer.Player = old;
+                }
+                else
+                {
+                    Thread.Sleep(1);
+                }
+            }
+        });
     }
 }
 

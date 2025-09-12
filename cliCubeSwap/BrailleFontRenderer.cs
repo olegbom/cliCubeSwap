@@ -4,10 +4,14 @@ using Microsoft.Extensions.Configuration;
 
 namespace CliCubeSwap;
 
-public struct Point
+public enum Color: byte
 {
-    public byte X;
-    public byte Y;
+    Default = 0,
+    Gray,
+    Red,
+    Green,
+    Blue,
+    White,
 }
 
 public class BrailleFontRenderer
@@ -22,6 +26,7 @@ public class BrailleFontRenderer
     public Point Player = new Point(){ X = 2, Y = 1};
     
     private byte[] _drawBuffer;
+    private byte[] _colorBuffer;
 
     private string firstrow = "     ⡀    ";
     private string pattern  = "⠀⢀⡠⠒⠉⠈⠑⠢⣀⠀" +
@@ -47,6 +52,7 @@ public class BrailleFontRenderer
     {
         int bufferSizeIfBytes = Width * Height / 8;
         _drawBuffer = new byte[bufferSizeIfBytes];
+        _colorBuffer = new byte[bufferSizeIfBytes];
         Draw();
     }
 
@@ -70,11 +76,30 @@ public class BrailleFontRenderer
             {
                 frame++;
                 Draw();
+                Color lastColor = Color.Default;
                 for (int j = 0; j < Height/4; j++)
                 {
                     for (int i = 0; i < Width/2; i++)
                     {
-                        sb.Append((char)(BrailleEmptySymbol + _drawBuffer[i + Width/2*j]));
+                        int index = i + Width/2*j;
+                        Color currentColor = (Color)_colorBuffer[index];
+                        if(lastColor != currentColor)
+                        {
+                            lastColor = currentColor;
+                            sb.Append(
+                            currentColor switch
+                            {
+                                Color.Gray => "\e[38;5;239m",
+                                Color.Red => "\e[31m",
+                                Color.Green => "\e[32m",
+                                Color.Blue => "\e[34m",
+                                Color.White => "\e[97m",
+                                _ => "\e[39m",
+                            });
+                        }
+
+                        sb.Append((char)(BrailleEmptySymbol + _drawBuffer[index]));
+
                     }
                     char last_in_row = ' ';
                     if( (j/4) % 2 == 0 )
@@ -103,7 +128,7 @@ public class BrailleFontRenderer
             }
             Console.Write($"\e[{Height/4 + 1}B");
         });
-         
+
     }
 
     private void Draw()
@@ -159,6 +184,7 @@ public class BrailleFontRenderer
                 if( index < bufferSizeIfBytes )
                 {
                     _drawBuffer[index] = (byte)(inside[i + j * 7] - BrailleEmptySymbol);
+                    _colorBuffer[index] = (byte)Color.White;
                 } 
             }
         }
@@ -176,6 +202,7 @@ public class BrailleFontRenderer
                 if( index < bufferSizeIfBytes )
                 {
                     _drawBuffer[index] = (byte)(empty_cell[i + j * 7] - BrailleEmptySymbol);
+                    _colorBuffer[index] = (byte)Color.Gray;
                 } 
             }
         }
@@ -184,5 +211,11 @@ public class BrailleFontRenderer
     private int ToArrIdx(int x, int y)
     {
         return x + y * Width / 2;
+    }
+
+    public bool IsCoordValid(int x, int y)
+    {
+        return x >= 0 && y >= 0 && y < Rows &&
+            (((y%2) == 1 && x < Columns - 1) || ((y%2) == 0 && x < Columns));
     }
 }
