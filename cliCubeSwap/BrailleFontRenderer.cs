@@ -4,25 +4,42 @@ using Microsoft.Extensions.Configuration;
 
 namespace CliCubeSwap;
 
+public struct Point
+{
+    public byte X;
+    public byte Y;
+}
+
 public class BrailleFontRenderer
 {
-    public int Width { get; init; } = 10*20;
+    public int Width { get; init; } = 6*20;
     public int Height { get; init; } = (5+1)*16 - 12;
 
-    public int Framerate { get; init; } = 60;
+    public int Rows => Height / 16;
+    public int Columns => Width / 20;
 
+    public int Framerate { get; init; } = 60;
+    public Point Player = new Point(){ X = 2, Y = 1};
+    
     private byte[] _drawBuffer;
 
     private string firstrow = "     ⡀    ";
-    private string pattern = "⠀⢀⡠⠒⠉⠈⠑⠢⣀⠀" +
-                             "⡎⠁⠀⠀⠀⠀⠀⠀⠀⠉" +
-                             "⡇⠀⠀⠀⠀⠀⠀⠀⠀⠀" +
-                             "⡇⠀⠀⠀⠀⠀⠀⠀⠀⠀"; 
+    private string pattern  = "⠀⢀⡠⠒⠉⠈⠑⠢⣀⠀" +
+                              "⡎⠁⠀⠀⠀⠀⠀⠀⠀⠉" +
+                              "⡇⠀⠀⠀⠀⠀⠀⠀⠀⠀" +
+                              "⡇⠀⠀⠀⠀⠀⠀⠀⠀⠀"; 
     private string rightside = " " +
                                "⡆" +
                                "⡇" +
                                "⡇";
     private string bottomrow = "⠀⠀⠀⠀⠉⠊⠁⠀⠀⠀";
+    private string inside = "⢄⠀⠀⠀⠀⢀⠄" +
+                            "⠀⠉⠒⡔⠊⠁⠀" +
+                            "⠀⠀⠀⡇⠀⠀⠀";
+
+    private string empty_cell  = "⠀⠀⠀⡇⠀⠀⠀" +
+                                 "⠀⠀⣀⢇⡀⠀⠀" +
+                                 "⠔⠉⠀⠀⠈⠑⠤"; 
 
     private const char BrailleEmptySymbol = '⠀';
 
@@ -30,28 +47,7 @@ public class BrailleFontRenderer
     {
         int bufferSizeIfBytes = Width * Height / 8;
         _drawBuffer = new byte[bufferSizeIfBytes];
-        for (int row = 0; row < Height/16 + 1; row++)
-        {
-            int rowDelta = -(row % 2) * 5;
-            for (int column = 0; column < Width/20 + 1; column++)
-            {
-                for (int i = 0; i < 10; i++)
-                {
-                    int i_index = i + column * 10 + rowDelta;
-                    if (i_index >= 0 && i_index < Width / 2)
-                    {
-                        for (int j = 0; j < 4; j++)
-                        {
-                            int index = i_index + Width / 2 * (j + row * 4);
-                            if(index < bufferSizeIfBytes)
-                            {
-                                _drawBuffer[index] = (byte)(pattern[i + 10 * j] - BrailleEmptySymbol);
-                            }
-                        }
-                    }
-                }
-            }
-        }
+        Draw();
     }
 
     public async Task Loop(CancellationToken token)
@@ -73,6 +69,7 @@ public class BrailleFontRenderer
             while (!token.IsCancellationRequested)
             {
                 frame++;
+                Draw();
                 for (int j = 0; j < Height/4; j++)
                 {
                     for (int i = 0; i < Width/2; i++)
@@ -111,7 +108,81 @@ public class BrailleFontRenderer
 
     private void Draw()
     {
-        
+        int bufferSizeIfBytes = _drawBuffer.Length;
+        Array.Clear(_drawBuffer);
+        for (int row = 0; row < Height/16 + 1; row++)
+        {
+            int rowDelta = -(row % 2) * 5;
+            for (int column = 0; column < Width/20 + 1; column++)
+            {
+                for (int i = 0; i < 10; i++)
+                {
+                    int i_index = i + column * 10 + rowDelta;
+                    if (i_index >= 0 && i_index < Width / 2)
+                    {
+                        for (int j = 0; j < 4; j++)
+                        {
+                            int index = i_index + Width / 2 * (j + row * 4);
+                            if(index < bufferSizeIfBytes)
+                            {
+                                _drawBuffer[index] = (byte)(pattern[i + 10 * j] - BrailleEmptySymbol);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        for(int i = 0; i < Columns; i++)
+        {
+            for(int j = 0; j < Rows; j++)
+            {
+                if( (j%2) == 0 || i < Columns - 1)
+                {
+                    DrawEmptyCell(new Point(){X = (byte)i, Y = (byte)j});
+                }
+            }
+        }
+
+        DrawInside(Player);
     }
 
+    private void DrawInside(Point p)
+    {
+        int bufferSizeIfBytes = _drawBuffer.Length;
+        int delta =  ToArrIdx( p.X * 10 + 2 + (p.Y % 2) * 5, 1 + p.Y * 4);
+        for (int i = 0; i < 7; i++)
+        {
+            for(int j = 0; j < 3; j++)
+            {
+                int index = delta + ToArrIdx(i, j);
+                if( index < bufferSizeIfBytes )
+                {
+                    _drawBuffer[index] = (byte)(inside[i + j * 7] - BrailleEmptySymbol);
+                } 
+            }
+        }
+    }
+
+    private void DrawEmptyCell(Point p)
+    {
+        int bufferSizeIfBytes = _drawBuffer.Length;
+        int delta =  ToArrIdx( p.X * 10 + 2 + (p.Y % 2) * 5, 1 + p.Y * 4);
+        for (int i = 0; i < 7; i++)
+        {
+            for(int j = 0; j < 3; j++)
+            {
+                int index = delta + ToArrIdx(i, j);
+                if( index < bufferSizeIfBytes )
+                {
+                    _drawBuffer[index] = (byte)(empty_cell[i + j * 7] - BrailleEmptySymbol);
+                } 
+            }
+        }
+    }
+
+    private int ToArrIdx(int x, int y)
+    {
+        return x + y * Width / 2;
+    }
 }
