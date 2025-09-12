@@ -19,9 +19,12 @@ class Program
         IConfiguration config = builder.Build();
 
         Console.CancelKeyPress += OnCancelKeyPress;
-
+        
         renderer = new BrailleFontRenderer(){ Framerate = int.Parse(config["Framerate"] ?? "60")};
         Console.WriteLine("Press Ctrl+C for exit");
+        Console.WriteLine("          W↖ ↗E");
+        Console.WriteLine("Control: A← ⬡ →D");
+        Console.WriteLine("          Z↙ ↘X");
         Task.WhenAll( new List<Task> () {renderer.Loop(_cts.Token), ReadKeyLoop(_cts.Token)}).Wait();
     }
 
