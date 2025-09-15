@@ -25,8 +25,8 @@ public class BrailleFontRenderer
     public int Framerate { get; init; } = 60;
     public Point Player = new Point(){ X = 2, Y = 1};
     
-    private byte[] _drawBuffer;
-    private byte[] _colorBuffer;
+    private char[] _drawBuffer;
+    private Color[] _colorBuffer;
 
     private string firstrow = "     ⡀    ";
     private string pattern  = "⠀⢀⡠⠒⠉⠈⠑⠢⣀⠀" +
@@ -51,8 +51,8 @@ public class BrailleFontRenderer
     public BrailleFontRenderer()
     {
         int bufferSizeIfBytes = Width * Height / 8;
-        _drawBuffer = new byte[bufferSizeIfBytes];
-        _colorBuffer = new byte[bufferSizeIfBytes];
+        _drawBuffer = new char[bufferSizeIfBytes];
+        _colorBuffer = new Color[bufferSizeIfBytes];
         Draw();
     }
 
@@ -82,7 +82,7 @@ public class BrailleFontRenderer
                     for (int i = 0; i < Width/2; i++)
                     {
                         int index = i + Width/2*j;
-                        Color currentColor = (Color)_colorBuffer[index];
+                        Color currentColor = _colorBuffer[index];
                         if(lastColor != currentColor)
                         {
                             lastColor = currentColor;
@@ -98,7 +98,7 @@ public class BrailleFontRenderer
                             });
                         }
 
-                        sb.Append((char)(BrailleEmptySymbol + _drawBuffer[index]));
+                        sb.Append(_drawBuffer[index]);
 
                     }
                     char last_in_row = ' ';
@@ -150,7 +150,7 @@ public class BrailleFontRenderer
                             int index = i_index + Width / 2 * (j + row * 4);
                             if(index < bufferSizeIfBytes)
                             {
-                                _drawBuffer[index] = (byte)(pattern[i + 10 * j] - BrailleEmptySymbol);
+                                _drawBuffer[index] = pattern[i + 10 * j];
                             }
                         }
                     }
@@ -183,8 +183,8 @@ public class BrailleFontRenderer
                 int index = delta + ToArrIdx(i, j);
                 if( index < bufferSizeIfBytes )
                 {
-                    _drawBuffer[index] = (byte)(inside[i + j * 7] - BrailleEmptySymbol);
-                    _colorBuffer[index] = (byte)Color.White;
+                    _drawBuffer[index] = inside[i + j * 7];
+                    _colorBuffer[index] = Color.White;
                 } 
             }
         }
@@ -201,8 +201,8 @@ public class BrailleFontRenderer
                 int index = delta + ToArrIdx(i, j);
                 if( index < bufferSizeIfBytes )
                 {
-                    _drawBuffer[index] = (byte)(empty_cell[i + j * 7] - BrailleEmptySymbol);
-                    _colorBuffer[index] = (byte)Color.Gray;
+                    _drawBuffer[index] = empty_cell[i + j * 7];
+                    _colorBuffer[index] = Color.Gray;
                 } 
             }
         }
